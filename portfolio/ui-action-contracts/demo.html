@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Local UI Contract Lab</title>
+<style>body{font:20px system-ui;max-width:700px;margin:70px auto;background:#111827;color:#e5e7eb}button,input{font:inherit;padding:10px;margin:12px}button{background:#67e8f9;color:#111827;border:0;border-radius:8px}</style>
+<h1>Local UI Contract Lab</h1><p>Disposable fixture. No accounts or network required.</p>
+<label>Display name <input id="name"></label>
+<button id="save">Save draft</button><button id="reset">Reset draft</button>
+<p role="status" aria-label="Draft status" id="status">No draft</p>
+<script>
+const nameInput=document.getElementById('name'), statusText=document.getElementById('status');
+document.getElementById('save').onclick=()=>statusText.textContent=nameInput.value.trim()?'Saved: '+nameInput.value.trim():'Name required';
+document.getElementById('reset').onclick=()=>{nameInput.value='';statusText.textContent='No draft';};
+</script></html>

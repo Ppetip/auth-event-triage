@@ -1,0 +1,15 @@
+{
+  "target": 0.999,
+  "windows": [
+    {
+      "name": "1 hour",
+      "total": 100000,
+      "bad": 250
+    },
+    {
+      "name": "30 days",
+      "total": 10000000,
+      "bad": 5000
+    }
+  ]
+}

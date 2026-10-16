@@ -1,0 +1,14 @@
+{
+  "records": [
+    {
+      "name": "example.test",
+      "type": "TXT",
+      "value": "v=spf1 +all"
+    },
+    {
+      "name": "www.example.test",
+      "type": "A",
+      "value": "192.0.2.1"
+    }
+  ]
+}

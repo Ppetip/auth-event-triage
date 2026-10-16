@@ -2,6 +2,8 @@
 
 Correlate failed logins and subsequent success using event-time sliding windows, producing evidence for a SOC analyst.
 
+[Browse the complete 15-project portfolio](PORTFOLIO.md). Five projects are temporarily staged under `portfolio/` pending GitHub’s repository-creation cooldown.
+
 ## Run
 
 Python 3.11 or newer. Standard library only; no credentials or services required.

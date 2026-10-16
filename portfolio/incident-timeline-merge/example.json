@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "source": "app",
+      "id": "a",
+      "time": "2026-10-16T09:01:00-04:00",
+      "message": "Synthetic alert"
+    },
+    {
+      "source": "host",
+      "id": "b",
+      "time": "2026-10-16T13:00:00Z",
+      "message": "Synthetic process event"
+    }
+  ]
+}

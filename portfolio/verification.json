@@ -1,0 +1,77 @@
+[
+  {
+    "project": "auth-event-triage",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "backup-manifest-verify",
+    "exit_code": 0,
+    "tests": 8
+  },
+  {
+    "project": "certificate-expiry-board",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "configuration-drift-map",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "dependency-runbook",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "dns-zone-sanity",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "file-integrity-ledger",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "firewall-path-explainer",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "http-header-review",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "iam-policy-lens",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "incident-timeline-merge",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "redacted-secret-audit",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "sbom-change-review",
+    "exit_code": 0,
+    "tests": 9
+  },
+  {
+    "project": "slo-budget-calculator",
+    "exit_code": 0,
+    "tests": 10
+  },
+  {
+    "project": "ui-action-contracts",
+    "exit_code": 0,
+    "tests": 7
+  }
+]

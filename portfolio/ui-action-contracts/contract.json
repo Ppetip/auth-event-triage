@@ -1,0 +1,36 @@
+{
+  "steps": [
+    {
+      "action": "click",
+      "name": "Save draft"
+    },
+    {
+      "action": "text",
+      "name": "Draft status",
+      "expected": "Name required"
+    },
+    {
+      "action": "fill",
+      "name": "Display name",
+      "value": "Demo reviewer"
+    },
+    {
+      "action": "click",
+      "name": "Save draft"
+    },
+    {
+      "action": "text",
+      "name": "Draft status",
+      "expected": "Saved: Demo reviewer"
+    },
+    {
+      "action": "click",
+      "name": "Reset draft"
+    },
+    {
+      "action": "text",
+      "name": "Draft status",
+      "expected": "No draft"
+    }
+  ]
+}

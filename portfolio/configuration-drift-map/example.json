@@ -1,0 +1,19 @@
+{
+  "before": {
+    "server": {
+      "tls": true,
+      "port": 443
+    },
+    "build": "one"
+  },
+  "after": {
+    "server": {
+      "tls": false,
+      "port": 443
+    },
+    "build": "two"
+  },
+  "ignore_paths": [
+    "/build"
+  ]
+}

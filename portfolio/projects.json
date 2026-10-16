@@ -1,0 +1,151 @@
+[
+  {
+    "name": "auth-event-triage",
+    "title": "Auth Event Triage",
+    "purpose": "Correlate failed logins and subsequent success using event-time sliding windows, producing evidence for a SOC analyst.",
+    "limits": "Normalized JSON input only. Source/user correlation is a heuristic; NAT, distributed attacks, MFA and identity aliases need analyst context. No live log collection.",
+    "next": "Add password-spray correlation across users, JSONL streaming and labeled false-positive evaluation.",
+    "repository_url": "https://github.com/Ppetip/auth-event-triage",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/auth-event-triage"
+  },
+  {
+    "name": "http-header-review",
+    "title": "HTTP Header Review",
+    "purpose": "Review captured HTTP response headers offline and explain actionable browser-hardening gaps.",
+    "limits": "Heuristic policy review, not an XSS scanner or CSP parser conformance suite. Review application compatibility before adopting changes. No requests are sent.",
+    "next": "Parse duplicate headers from HAR fixtures and add CSP nonce and report-only diagnostics.",
+    "repository_url": "https://github.com/Ppetip/http-header-review",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/http-header-review"
+  },
+  {
+    "name": "file-integrity-ledger",
+    "title": "File Integrity Ledger",
+    "purpose": "Create bounded SHA-256 directory manifests and compare snapshots to identify additions, deletions and modifications.",
+    "limits": "Manifest authenticity is not guaranteed; store trusted baselines separately. Read-only snapshot helper rejects symlinks, but is not hardened against concurrent hostile filesystem mutation.",
+    "next": "Add signed manifests, metadata modes, platform-specific junction defenses and atomic snapshot strategies.",
+    "repository_url": "https://github.com/Ppetip/file-integrity-ledger",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/file-integrity-ledger"
+  },
+  {
+    "name": "redacted-secret-audit",
+    "title": "Redacted Secret Audit",
+    "purpose": "Find likely credentials in supplied source text while returning only rule, line and irreversible fingerprints.",
+    "limits": "Rule-based detection has false positives and misses unknown token formats. Fingerprints can reveal weak secrets by guessing; reports are still sensitive. No network verification or repository traversal.",
+    "next": "Add directory scanning with explicit ignores, test corpus metrics and SARIF export with redaction regression tests.",
+    "repository_url": "https://github.com/Ppetip/redacted-secret-audit",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/redacted-secret-audit"
+  },
+  {
+    "name": "iam-policy-lens",
+    "title": "IAM Policy Lens",
+    "purpose": "Review AWS-style identity policy JSON for broad allows and explain statement-level evidence.",
+    "limits": "Static lint only. Does not compute effective permissions, service-specific resource semantics, SCPs, boundaries, trust relationships or condition satisfiability. Never changes cloud access.",
+    "next": "Add service-aware resource requirements and condition analysis against documented fixtures.",
+    "repository_url": "https://github.com/Ppetip/iam-policy-lens",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/iam-policy-lens"
+  },
+  {
+    "name": "firewall-path-explainer",
+    "title": "Firewall Path Explainer",
+    "purpose": "Simulate ordered first-match firewall rules for supplied packets and explain redundant or shadowed rules.",
+    "limits": "A small source/protocol/destination-port model, not a device configuration parser. No destination IP, state, NAT, zones or routing. Default is deny. Does not touch real firewalls.",
+    "next": "Add destination networks, IPv6 fixtures, rule hit statistics and vendor configuration adapters.",
+    "repository_url": "https://github.com/Ppetip/firewall-path-explainer",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/firewall-path-explainer"
+  },
+  {
+    "name": "sbom-change-review",
+    "title": "SBOM Change Review",
+    "purpose": "Compare CycloneDX-style component inventories, detect ambiguous identities and explain version/license changes.",
+    "limits": "No vulnerability database, license legal judgment, signature verification or dependency resolution. Stable bom-ref values are preferred; versioned purls can appear as removal/addition.",
+    "next": "Normalize versioned package URLs, support dependency-edge changes and add schema validation.",
+    "repository_url": "https://github.com/Ppetip/sbom-change-review",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/sbom-change-review"
+  },
+  {
+    "name": "certificate-expiry-board",
+    "title": "Certificate Expiry Board",
+    "purpose": "Prioritize exported certificate inventories by expiry and not-before dates using an explicit reproducible clock.",
+    "limits": "Inventory review only; does not establish chain trust, hostname matches, revocation or live endpoint health. Does not contact hosts.",
+    "next": "Import PEM certificates and add owner routing, inventory deduplication and renew-before windows.",
+    "repository_url": "https://github.com/Ppetip/certificate-expiry-board",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/certificate-expiry-board"
+  },
+  {
+    "name": "backup-manifest-verify",
+    "title": "Backup Manifest Verify",
+    "purpose": "Verify a backup against trusted SHA-256 entries without restoring files, rejecting traversal and symlink paths.",
+    "limits": "A matching digest does not prove a backup can restore an application. Baseline must be trusted. No extraction, writes or cloud access. Concurrent filesystem attacks and Windows junctions need additional defenses.",
+    "next": "Add isolated restore drills, metadata verification and platform-specific safe-open handling.",
+    "repository_url": "https://github.com/Ppetip/backup-manifest-verify",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/backup-manifest-verify"
+  },
+  {
+    "name": "dependency-runbook",
+    "title": "Dependency Runbook",
+    "purpose": "Compute deterministic recovery order and parallelizable stages for service dependencies, rejecting cycles and missing references.",
+    "limits": "Planning only. Does not execute restarts or model readiness, resource contention and distributed consensus. Stages need human and service-specific health gates.",
+    "next": "Add critical-path duration estimates and health-gated dry-run orchestration.",
+    "repository_url": "https://github.com/Ppetip/dependency-runbook",
+    "publication": "independent public repository",
+    "source_url": "https://github.com/Ppetip/dependency-runbook"
+  },
+  {
+    "name": "slo-budget-calculator",
+    "title": "SLO Budget Calculator",
+    "purpose": "Compute request-based error-budget consumption and burn rates for explicitly bounded observation windows.",
+    "limits": "Request-based SLO only. Missing data is not healthy. Does not infer time-to-exhaustion or combine overlapping windows. Floating-point output is approximate.",
+    "next": "Add multi-window burn alerts, explicit telemetry completeness and time-based SLO support.",
+    "repository_url": "https://github.com/Ppetip/slo-budget-calculator",
+    "publication": "staged in auth-event-triage pending GitHub creation cooldown",
+    "source_url": "https://github.com/Ppetip/auth-event-triage/tree/main/portfolio/slo-budget-calculator"
+  },
+  {
+    "name": "incident-timeline-merge",
+    "title": "Incident Timeline Merge",
+    "purpose": "Normalize timestamped evidence into a UTC timeline, deduplicate stable IDs and detect contradictory records.",
+    "limits": "Normalized JSON only. Timestamps do not prove causality; clocks may skew and evidence may be incomplete. Does not claim forensic chain of custody.",
+    "next": "Add source clock uncertainty, immutable evidence digests and CSV import/export.",
+    "repository_url": "https://github.com/Ppetip/incident-timeline-merge",
+    "publication": "staged in auth-event-triage pending GitHub creation cooldown",
+    "source_url": "https://github.com/Ppetip/auth-event-triage/tree/main/portfolio/incident-timeline-merge"
+  },
+  {
+    "name": "configuration-drift-map",
+    "title": "Configuration Drift Map",
+    "purpose": "Compare nested configuration snapshots using JSON Pointer paths with auditable exact-path ignores.",
+    "limits": "Lists are compared as atomic values. Reports contain before/after values; redact credentials before supplying data. Ignores suppress entire subtrees at exact paths.",
+    "next": "Add schema-aware secret masking, named baseline policies and list identity matching.",
+    "repository_url": "https://github.com/Ppetip/configuration-drift-map",
+    "publication": "staged in auth-event-triage pending GitHub creation cooldown",
+    "source_url": "https://github.com/Ppetip/auth-event-triage/tree/main/portfolio/configuration-drift-map"
+  },
+  {
+    "name": "dns-zone-sanity",
+    "title": "DNS Zone Sanity",
+    "purpose": "Lint normalized DNS exports for CNAME collisions, malformed IP records and SPF policy mistakes without sending queries.",
+    "limits": "Normalized export format only. SPF lookup count is a lower bound without recursive resolution. No DNS queries, DKIM validation, DNSSEC verification or full zone grammar.",
+    "next": "Parse zone files, handle split TXT strings and add fixture-based SPF recursion with explicit query budgets.",
+    "repository_url": "https://github.com/Ppetip/dns-zone-sanity",
+    "publication": "staged in auth-event-triage pending GitHub creation cooldown",
+    "source_url": "https://github.com/Ppetip/auth-event-triage/tree/main/portfolio/dns-zone-sanity"
+  },
+  {
+    "name": "ui-action-contracts",
+    "title": "UI Action Contracts",
+    "purpose": "Verify explicit UI contracts on disposable HTML with network blocked.",
+    "next": "Add masked screenshots and checkbox fixtures.",
+    "repository_url": "https://github.com/Ppetip/ui-action-contracts",
+    "publication": "staged in auth-event-triage pending GitHub creation cooldown",
+    "source_url": "https://github.com/Ppetip/auth-event-triage/tree/main/portfolio/ui-action-contracts"
+  }
+]
