@@ -1,0 +1,17 @@
+{
+  "threshold": 2,
+  "events": [
+    {
+      "time": "2026-01-01T00:00:00Z",
+      "source": "192.0.2.1",
+      "user": "demo",
+      "outcome": "failure"
+    },
+    {
+      "time": "2026-01-01T00:00:03Z",
+      "source": "192.0.2.1",
+      "user": "demo",
+      "outcome": "failure"
+    }
+  ]
+}
