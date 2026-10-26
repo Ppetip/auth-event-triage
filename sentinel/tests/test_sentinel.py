@@ -58,6 +58,26 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(self.store.acknowledge(aid))
         self.assertFalse(self.store.acknowledge(aid))
         self.assertEqual(self.store.stats()['unacknowledged'],1)
+        audit = self.store.audit()
+        self.assertEqual(len(audit),1)
+        self.assertEqual(audit[0]['alert_id'],aid)
+        self.assertEqual(audit[0]['action'],'acknowledged')
+        self.assertEqual(audit[0]['actor'],'reader_token')
+    def test_audit_persistence_and_no_duplicate(self):
+        self.store.ingest(event(77,'host_down'))
+        alert_id = self.store.alerts()[0]['id']
+        self.assertTrue(self.store.acknowledge(alert_id))
+        self.assertFalse(self.store.acknowledge(alert_id))
+        self.assertFalse(self.store.acknowledge(999999))
+        other = Store(Path(self.tmp.name)/'events.db')
+        try:
+            rows = other.audit()
+            self.assertEqual(len(rows),1)
+            self.assertEqual(rows[0]['alert_id'],alert_id)
+            self.assertEqual(len(other.audit(limit=1)),1)
+        finally:
+            other.close()
+
     def test_persistence(self):
         self.store.ingest(event(1,'host_down'))
         other=Store(Path(self.tmp.name)/'events.db')
@@ -90,11 +110,15 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.req('/api/events')[0],401)
         self.assertEqual(self.req('/api/events','ingest_secret')[0],401)
         self.assertEqual(self.req('/api/events','reader_secret')[0],200)
+        self.assertEqual(self.req('/api/audit')[0],401)
+        self.assertEqual(self.req('/api/audit','ingest_secret')[0],401)
+        self.assertEqual(self.req('/api/audit','reader_secret')[0],200)
         self.assertEqual(self.req('/api/events','reader_secret',event(11))[0],401)
         self.assertEqual(self.req('/api/events','ingest_secret',event(11))[0],201)
         self.assertEqual(self.req('/api/events','ingest_secret',event(11))[0],200)
     def test_limits_and_errors(self):
         self.assertEqual(self.req('/api/events?limit=201','reader_secret')[0],400)
+        self.assertEqual(self.req('/api/audit?limit=201','reader_secret')[0],400)
         self.assertEqual(self.req('/api/events?host=bad%20host','reader_secret')[0],400)
         self.assertEqual(self.req('/api/events','ingest_secret',{'foo':'bar'})[0],400)
         self.assertEqual(self.req('/api/events','ingest_secret',event(12),'text/plain')[0],415)
@@ -108,6 +132,10 @@ class APITests(unittest.TestCase):
         with urllib.request.urlopen(request) as response:self.assertEqual(json.load(response),{'acknowledged':True})
         with self.assertRaises(urllib.error.HTTPError) as ctx:urllib.request.urlopen(request)
         self.assertEqual(ctx.exception.code,404)
+        status, data = self.req('/api/audit','reader_secret')
+        self.assertEqual(status,200)
+        self.assertEqual(len(data['audit']),1)
+        self.assertEqual(data['audit'][0]['alert_id'],alert_id)
     def test_loopback_enforced(self):
         with self.assertRaises(ValueError):make_server('0.0.0.0',0,':memory:','i','r')
 
