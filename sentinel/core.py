@@ -46,6 +46,7 @@ class Store:
         self.db = sqlite3.connect(self.filename, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA busy_timeout=5000')
+        self.db.execute('PRAGMA foreign_keys=ON')
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS events (
@@ -59,6 +60,14 @@ class Store:
               timestamp TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0,
               UNIQUE(event_id,kind));
             CREATE INDEX IF NOT EXISTS idx_alerts_time ON alerts(timestamp DESC);
+            CREATE TABLE IF NOT EXISTS audit_entries (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              alert_id INTEGER NOT NULL,
+              action TEXT NOT NULL CHECK(action = 'acknowledged'),
+              actor TEXT NOT NULL,
+              timestamp TEXT NOT NULL,
+              FOREIGN KEY(alert_id) REFERENCES alerts(id));
+            CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_entries(timestamp DESC,id DESC);
         ''')
 
     def ingest(self, raw):
@@ -104,9 +113,31 @@ class Store:
             return [dict(r) for r in self.db.execute('SELECT * FROM alerts ORDER BY timestamp DESC,id DESC LIMIT ?', (limit,)).fetchall()]
 
     def acknowledge(self, alert_id):
+        """Acknowledge exactly once and atomically preserve an audit record.
+
+        The MVP has a shared reader token rather than per-user identities, so the
+        actor is deliberately a role label, not a fabricated user identity.
+        """
         with self.lock:
-            cur = self.db.execute('UPDATE alerts SET acknowledged=1 WHERE id=? AND acknowledged=0', (alert_id,))
-            return cur.rowcount == 1
+            self.db.execute('BEGIN IMMEDIATE')
+            try:
+                cur = self.db.execute('UPDATE alerts SET acknowledged=1 WHERE id=? AND acknowledged=0', (alert_id,))
+                updated = cur.rowcount == 1
+                if updated:
+                    self.db.execute("""INSERT INTO audit_entries(alert_id,action,actor,timestamp)
+                        VALUES (?,?,?,?)""", (alert_id, 'acknowledged', 'reader_token',
+                        dt.datetime.now(dt.timezone.utc).isoformat()))
+                self.db.execute('COMMIT')
+                return updated
+            except Exception:
+                self.db.execute('ROLLBACK')
+                raise
+
+    def audit(self, limit=50):
+        with self.lock:
+            rows = self.db.execute("""SELECT id,alert_id,action,actor,timestamp FROM audit_entries
+                ORDER BY timestamp DESC,id DESC LIMIT ?""", (limit,))
+            return [dict(r) for r in rows.fetchall()]
 
     def stats(self):
         with self.lock:
