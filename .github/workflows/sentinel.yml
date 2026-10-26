@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: sentinel-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   unit:
     strategy:
@@ -40,3 +43,28 @@ jobs:
       - run: pip install playwright==1.56.0
       - run: python -m playwright install --with-deps chromium
       - run: python -m unittest sentinel.tests.test_browser -v
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -f sentinel/Dockerfile -t sentinel:ci .
+      - name: Start container and check HTTP health
+        run: |
+          docker run -d --name sentinel-ci \
+            -e SENTINEL_INGEST_TOKEN=ci_ingest_test_only \
+            -e SENTINEL_READ_TOKEN=ci_reader_test_only \
+            -e SENTINEL_CONTAINER_BIND=1 \
+            -p 127.0.0.1:18765:8765 sentinel:ci
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18765/healthz | grep -q '"status":"ok"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs sentinel-ci
+          exit 1
+      - name: Clean up
+        if: always()
+        run: docker rm -f sentinel-ci || true
