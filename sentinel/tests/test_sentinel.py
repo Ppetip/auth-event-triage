@@ -1,4 +1,5 @@
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 import json
 import tempfile
 import threading
@@ -77,6 +78,15 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(len(other.audit(limit=1)),1)
         finally:
             other.close()
+
+    def test_concurrent_ack_has_single_audit_record(self):
+        self.store.ingest(event(88, 'host_down'))
+        alert_id = self.store.alerts()[0]['id']
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(self.store.acknowledge, [alert_id] * 16))
+        self.assertEqual(results.count(True), 1)
+        self.assertEqual(len(self.store.audit()), 1)
+        self.assertEqual(self.store.stats()['unacknowledged'], 0)
 
     def test_persistence(self):
         self.store.ingest(event(1,'host_down'))
