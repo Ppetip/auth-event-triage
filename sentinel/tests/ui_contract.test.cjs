@@ -12,7 +12,7 @@ class Element {
   setAttribute(k,v) { this.attrs[k]=v; }
   async click() { await this.listeners.click(); await new Promise(resolve=>setTimeout(resolve,5)); }
 }
-const ids=['status','token','connect','refresh','filter','host','events-total','alerts-total','open-total','hosts-total','alerts-body','events-body'];
+const ids=['status','token','connect','refresh','filter','host','events-total','alerts-total','open-total','hosts-total','alerts-body','events-body','audit-body'];
 const els=Object.fromEntries(ids.map(id=>[id,new Element()]));
 const calls=[];
 let acked=false;
@@ -20,6 +20,7 @@ const data={id:1,host:'node-1',kind:'host_down',message:'Host unavailable',times
 const fetch=async (url, options) => {
   calls.push([url,options]);
   if(url==='/api/stats') return {ok:true,json:async()=>({events:1,alerts:1,unacknowledged:acked?0:1,hosts:1})};
+  if(url==='/api/audit') return {ok:true,json:async()=>({audit:acked?[{id:1,alert_id:1,action:'acknowledged',actor:'reader_token',timestamp:data.timestamp}]:[]})};
   if(url==='/api/alerts') return {ok:true,json:async()=>({alerts:[{...data,acknowledged:acked?1:0}]})};
   if(url.startsWith('/api/events')) return {ok:true,json:async()=>({events:url.includes('host=missing')?[]:[{host:'node-1',kind:'host_down',detail:'<script>attack()</script>',timestamp:data.timestamp}]})};
   if(url==='/api/alerts/1/ack') {acked=true;return {ok:true,json:async()=>({acknowledged:true})};}
@@ -36,10 +37,12 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8'),
   assert.equal(els['alerts-body'].children[0].children[5].children[0].attrs['aria-label'],'Acknowledge alert 1 on node-1');
   await els['alerts-body'].children[0].children[5].children[0].click();
   assert.equal(els['open-total'].textContent,0);
+  assert.equal(els['audit-body'].children[0].children[2].textContent,'acknowledged');
+  assert.equal(els['audit-body'].children[0].children[3].textContent,'reader_token');
   els.host.value='missing'; await els.filter.click();
   assert.equal(els['events-body'].children[0].children[0].textContent,'No events');
   await els.refresh.click();
   assert.ok(calls.every(([,opts])=>opts.headers.Authorization==='Bearer reader_secret'));
   assert.equal(els.status.textContent,'Updated successfully.');
-  console.log('PASS UI DOM contracts: connect, token handling, alert acknowledgement, filter, refresh, safe text rendering');
+  console.log('PASS UI DOM contracts: connect, token handling, alert acknowledgement, filter, refresh, audit history, safe text rendering');
 })().catch(e=>{console.error(e);process.exitCode=1;});
