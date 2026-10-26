@@ -14,8 +14,9 @@ async function refresh() {
   if (!token) { status('Connect with a reader token first.'); return; }
   try {
     const host = el('host').value.trim();
-    const [stats, alerts, events] = await Promise.all([
-      api('/api/stats'), api('/api/alerts'), api('/api/events'+(host?'?host='+encodeURIComponent(host):''))
+    const [stats, alerts, events, audit] = await Promise.all([
+      api('/api/stats'), api('/api/alerts'), api('/api/events'+(host?'?host='+encodeURIComponent(host):'')),
+      api('/api/audit')
     ]);
     el('events-total').textContent = stats.events;
     el('alerts-total').textContent = stats.alerts;
@@ -43,6 +44,13 @@ async function refresh() {
       [event.timestamp,event.host,event.kind,event.detail].forEach(v=>cell(row,v)); eb.appendChild(row);
     }
     if (!events.events.length) { const r=document.createElement('tr');cell(r,'No events');eb.appendChild(r); }
+    const history = el('audit-body'); history.replaceChildren();
+    for (const entry of audit.audit) {
+      const row = document.createElement('tr');
+      [entry.timestamp,entry.alert_id,entry.action,entry.actor].forEach(v=>cell(row,v));
+      history.appendChild(row);
+    }
+    if (!audit.audit.length) { const row=document.createElement('tr');cell(row,'No audit entries');history.appendChild(row); }
     status('Updated successfully.');
   } catch(err) { status('Unable to load data: '+err.message); }
 }
