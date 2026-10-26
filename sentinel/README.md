@@ -1,6 +1,6 @@
 # Sentinel MVP (2026-10-24)
 
-Self-hosted, local-first event ingestion, SQLite persistence, basic detection rules, a reader-authenticated API, and an interactive dashboard. **Prototype, not a production SIEM.** The root repo's existing utilities remain unchanged.
+Self-hosted, local-first event ingestion, SQLite persistence, basic detection rules, a reader-authenticated API, and an interactive dashboard with persistent acknowledgment history. **Prototype, not a production SIEM.** The root repo's existing utilities remain unchanged.
 
 ## Quick start (Python 3.11+)
 
@@ -32,10 +32,14 @@ The browser suite launches real local Chromium, tests Connect/Refresh/Filter/Ack
 
 Run `docker compose -f sentinel/compose.yaml up --build` after setting both environment variables. Compose publishes only to host loopback; the container uses explicit opt-in to bind to its container interface. Other containers sharing its Docker network can still reach that interface, so **do not attach untrusted containers**. Do not expose directly to the Internet. This prototype has no TLS, credential rotation, per-agent identities, retention or RBAC. The SQLite volume persists events.
 
+## Alert acknowledgment audit history
+
+Successful alert acknowledgments are recorded transactionally in SQLite (`audit_entries`) with timestamp, alert ID, action and `reader_token` role label. Repeated or nonexistent acknowledgments do not add audit entries. The authenticated, bounded `GET /api/audit?limit=50` endpoint and dashboard show this history. This is a shared-token **role audit**, not user attribution or tamper-evident forensic logging. The current model cannot tell which individual used the reader token; real deployments need per-user authentication, RBAC, and protected audit retention.
+
 ## Security decisions / limitations
 
 - Two distinct bearer tokens: ingest-only and read/acknowledge; no default credentials, no token persistence in UI.
 - Bind to loopback by default; non-loopback allowed only with explicit container opt-in.
 - Bounded request body, strict event schema, parameterized SQL, idempotent IDs, and text-only rendering for untrusted event details.
-- No HA, queue, TLS termination, RBAC, audit logs, retention, per-agent identities, or production throughput guarantees.
-- Before real deployment: HTTPS reverse proxy, per-agent token rotation, audit logs, rate limits, retention, multi-process concurrency tests and late-event handling.
+- No HA, queue, TLS termination, RBAC, tamper-evident audit retention, per-user identities, per-agent identities, or production throughput guarantees.
+- Before real deployment: HTTPS reverse proxy, per-agent token rotation, per-user audit attribution, rate limits, retention, multi-process concurrency tests and late-event handling.
