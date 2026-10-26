@@ -61,7 +61,7 @@ def handler_factory(store, ingest_key, read_key):
                 self.end_headers()
                 self.wfile.write(data)
                 return
-            if parsed.path not in ('/api/events','/api/alerts','/api/stats'):
+            if parsed.path not in ('/api/events','/api/alerts','/api/stats','/api/audit'):
                 self._send(404, {'error':'not found'})
                 return
             if not self._require('read'):
@@ -82,6 +82,8 @@ def handler_factory(store, ingest_key, read_key):
                 self._send(200, {'events':store.events(limit, host)})
             elif parsed.path == '/api/alerts':
                 self._send(200, {'alerts':store.alerts(limit)})
+            elif parsed.path == '/api/audit':
+                self._send(200, {'audit':store.audit(limit)})
             else:
                 self._send(200, store.stats())
 
