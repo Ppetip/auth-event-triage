@@ -11,7 +11,7 @@ from .test_sentinel import event
 class BrowserTests(unittest.TestCase):
     def test_ui_buttons_and_safe_rendering(self):
         try:
-            from playwright.sync_api import sync_playwright
+            from playwright.sync_api import sync_playwright, expect
         except ImportError:
             self.skipTest('Playwright not installed')
         with tempfile.TemporaryDirectory() as d:
@@ -31,14 +31,18 @@ class BrowserTests(unittest.TestCase):
                         self.assertEqual(page.locator('img').count(),0)
                         self.assertIn('<img src=x onerror=alert(1)>',page.locator('#events-body').inner_text())
                         page.get_by_role('button',name='Acknowledge alert 1 on node-1').click()
-                        page.get_by_text('Updated successfully.').wait_for()
-                        self.assertEqual(page.locator('#open-total').inner_text(),'0')
+                        expect(page.locator('#open-total')).to_have_text('0')
+                        expect(page.get_by_role('button',name='Acknowledge alert 1 on node-1')).to_have_count(0)
+                        expect(page.locator('#audit-body')).to_contain_text('acknowledged')
+                        expect(page.locator('#audit-body')).to_contain_text('reader_token')
                         page.get_by_label('Host filter').fill('no-such-host')
                         page.get_by_role('button',name='Apply filter').click()
-                        self.assertIn('No events',page.locator('#events-body').inner_text())
+                        expect(page.locator('#events-body')).to_contain_text('No events')
                         page.get_by_role('button',name='Refresh').click()
                         self.assertEqual(page.locator('#events-total').inner_text(),'1')
                         self.assertEqual(page.locator('html').get_attribute('lang'),'en')
+                        expect(page.get_by_role('table',name='Alert acknowledgment history')).to_be_visible()
+                        expect(page.get_by_role('status')).to_have_text('Updated successfully.')
                     finally:browser.close()
             finally:
                 server.shutdown();server.server_close();server.store.close()
