@@ -46,6 +46,48 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(self.store.stats()['alerts'],1)
         self.assertEqual(self.store.ingest(event(4)), (False, []))
         self.assertEqual(self.store.stats()['alerts'],1)
+    def test_late_event_completes_burst(self):
+        base = NOW - dt.timedelta(minutes=30)
+        # Arrival order is intentionally different from event-time order.
+        for i in (0, 1, 3, 4):
+            inserted, detections = self.store.ingest(event(100+i, when=base+dt.timedelta(minutes=i)))
+            self.assertTrue(inserted)
+            self.assertEqual(detections, [])
+        inserted, detections = self.store.ingest(event(102, when=base+dt.timedelta(minutes=2)))
+        self.assertEqual((inserted, detections), (True, ['auth_burst']))
+        self.assertEqual(self.store.stats()['alerts'], 1)
+        alert = self.store.alerts()[0]
+        self.assertEqual(alert['event_id'], 'evt_00000104')
+        self.assertEqual(alert['timestamp'], (base+dt.timedelta(minutes=4)).isoformat())
+
+    def test_late_earliest_event_does_not_duplicate_alert(self):
+        base = NOW - dt.timedelta(minutes=30)
+        for i in (1, 2, 3, 4, 5):
+            self.store.ingest(event(200+i, when=base+dt.timedelta(minutes=i)))
+        self.assertEqual(self.store.stats()['alerts'], 1)
+        self.assertEqual(self.store.ingest(event(200, when=base)), (True, []))
+        self.assertEqual(self.store.stats()['alerts'], 1)
+
+    def test_late_event_does_not_create_false_burst(self):
+        base = NOW - dt.timedelta(minutes=30)
+        for i, minutes in enumerate((0, 1, 2, 6, 7)):
+            self.store.ingest(event(300+i, when=base+dt.timedelta(minutes=minutes)))
+        self.assertEqual(self.store.stats()['alerts'], 0)
+
+    def test_separated_auth_bursts(self):
+        base = NOW - dt.timedelta(minutes=40)
+        for i in range(5):
+            self.store.ingest(event(400+i, when=base+dt.timedelta(seconds=30*i)))
+        for i in range(5):
+            self.store.ingest(event(500+i, when=base+dt.timedelta(minutes=15, seconds=30*i)))
+        self.assertEqual(self.store.stats()['alerts'], 2)
+
+    def test_auth_burst_window_includes_exact_five_minute_boundary(self):
+        base = NOW - dt.timedelta(minutes=30)
+        for i in range(5):
+            self.store.ingest(event(600+i, when=base+dt.timedelta(seconds=75*i)))
+        self.assertEqual(self.store.stats()['alerts'], 1)
+
     def test_isolated_hosts(self):
         for i in range(4): self.store.ingest(event(i,host='a'))
         self.store.ingest(event(5,host='b'))
