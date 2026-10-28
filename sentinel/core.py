@@ -86,12 +86,39 @@ class Store:
                 if event['kind'] in ('host_down', 'integrity_changed'):
                     detections.append((event['kind'], 'Host unavailable' if event['kind']=='host_down' else 'File integrity changed'))
                 if event['kind'] == 'auth_failure':
-                    t = dt.datetime.fromisoformat(event['timestamp']) - dt.timedelta(minutes=5)
-                    count = self.db.execute('''SELECT COUNT(*) FROM events WHERE host=? AND kind='auth_failure'
-                        AND timestamp>=? AND timestamp<=?''', (event['host'], t.isoformat(), event['timestamp'])).fetchone()[0]
-                    if count == 5:
-                        detections.append(('auth_burst', 'Five authentication failures within five minutes'))
+                    # Search event-time windows on BOTH sides of a late arrival.
+                    # A late failure may be the first, middle, or last of the five.
+                    # Restrict the query to a 10-minute neighborhood, not the full history.
+                    when = dt.datetime.fromisoformat(event['timestamp'])
+                    window = dt.timedelta(minutes=5)
+                    rows = self.db.execute('''SELECT id,timestamp FROM events
+                        WHERE host=? AND kind='auth_failure' AND timestamp>=? AND timestamp<=?
+                        ORDER BY timestamp,id''',
+                        (event['host'], (when-window).isoformat(), (when+window).isoformat())).fetchall()
+                    for i in range(4, len(rows)):
+                        group = rows[i-4:i+1]
+                        if event['id'] not in (r['id'] for r in group):
+                            continue
+                        end = dt.datetime.fromisoformat(group[-1]['timestamp'])
+                        start = dt.datetime.fromisoformat(group[0]['timestamp'])
+                        if end-start > window:
+                            continue
+                        # Suppress duplicate alerts from the same burst, including
+                        # an earlier trigger discovered after an alert was emitted.
+                        prior = self.db.execute('''SELECT 1 FROM alerts
+                            WHERE host=? AND kind='auth_burst' AND timestamp>=? AND timestamp<=?
+                            LIMIT 1''', (event['host'], (end-window).isoformat(),
+                                          (end+window).isoformat())).fetchone()
+                        if not prior:
+                            self.db.execute('''INSERT INTO alerts(event_id,host,kind,message,timestamp)
+                                VALUES (?,?,?,?,?)''',
+                                (group[-1]['id'], event['host'], 'auth_burst',
+                                 'Five authentication failures within five minutes', end.isoformat()))
+                            detections.append(('auth_burst', 'Five authentication failures within five minutes'))
+                        break
                 for kind, message in detections:
+                    if kind == 'auth_burst':
+                        continue  # inserted above with its event-time anchor
                     self.db.execute('INSERT INTO alerts(event_id,host,kind,message,timestamp) VALUES (?,?,?,?,?)',
                                     (event['id'], event['host'], kind, message, event['timestamp']))
                 self.db.execute('COMMIT')
