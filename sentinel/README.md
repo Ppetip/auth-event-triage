@@ -43,3 +43,11 @@ Successful alert acknowledgments are recorded transactionally in SQLite (`audit_
 - Bounded request body, strict event schema, parameterized SQL, idempotent IDs, and text-only rendering for untrusted event details.
 - No HA, queue, TLS termination, RBAC, tamper-evident audit retention, per-user identities, per-agent identities, or production throughput guarantees.
 - Before real deployment: HTTPS reverse proxy, per-agent token rotation, per-user audit attribution, rate limits, retention, multi-process concurrency tests and late-event handling.
+
+## Late-event behavior (2026-10-28)
+
+Auth-burst detection now uses event timestamps rather than ingestion order. For each new authentication failure, Sentinel examines that host's failures within five minutes before and after the event, evaluates five-event windows chronologically, and anchors an alert to the latest event in the first qualifying group containing the new arrival. Existing auth-burst alerts within five minutes of that anchor suppress duplicates, including when older events arrive after an alert has fired. Alert acknowledgments and audit history are never retracted.
+
+**Trade-offs:** this is a local ten-minute event-time query per authentication failure, not a streaming watermark or historical backfill engine. Close-by distinct bursts may be deduplicated; high-volume deployments need a first-class incident model, load benchmarks, backpressure and event-time policies.
+
+Browser CI pins Ubuntu 24.04 because Playwright 1.56 cannot install Chromium on Ubuntu 26.04, selected by `ubuntu-latest` during the October 26 run.
