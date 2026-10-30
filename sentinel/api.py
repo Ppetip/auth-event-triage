@@ -2,7 +2,10 @@
 import argparse
 import hmac
 import json
+import math
 import os
+import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,13 +16,40 @@ MAX_BODY = 8192
 WEB = Path(__file__).with_name('web')
 
 
-def handler_factory(store, ingest_key, read_key):
+class TokenBucket:
+    """Thread-safe, process-local limiter for authenticated event ingestion."""
+
+    def __init__(self, burst=120, per_minute=600, clock=time.monotonic):
+        if type(burst) is not int or type(per_minute) is not int or not 1 <= burst <= 100000 or not 1 <= per_minute <= 100000:
+            raise ValueError('ingest limits must be integers from 1 to 100000')
+        self.capacity = burst
+        self.tokens = float(burst)
+        self.refill_per_second = per_minute / 60
+        self.clock = clock
+        self.last = clock()
+        self.lock = threading.Lock()
+
+    def consume(self):
+        """Return zero if allowed, otherwise the minimum retry delay in seconds."""
+        with self.lock:
+            now = self.clock()
+            self.tokens = min(self.capacity, self.tokens + max(0, now - self.last) * self.refill_per_second)
+            self.last = now
+            if self.tokens < 1:
+                return max(1, math.ceil((1 - self.tokens) / self.refill_per_second))
+            self.tokens -= 1
+            return 0
+
+
+def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
     if not ingest_key or not read_key or ingest_key == read_key:
         raise ValueError('set distinct non-empty ingestion and reader tokens')
 
+    ingest_limiter = ingest_limiter or TokenBucket()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = 'Sentinel/0.1'
-        def _send(self, code, obj):
+        def _send(self, code, obj, extra_headers=None):
             data = json.dumps(obj, separators=(',', ':')).encode()
             self.send_response(code)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -27,6 +57,8 @@ def handler_factory(store, ingest_key, read_key):
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Content-Security-Policy', "default-src 'none'")
             self.send_header('Content-Length', str(len(data)))
+            for key, value in (extra_headers or {}).items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(data)
 
@@ -92,6 +124,12 @@ def handler_factory(store, ingest_key, read_key):
             if path == '/api/events':
                 if not self._require('ingest'):
                     return
+                retry_after = ingest_limiter.consume()
+                if retry_after:
+                    self.close_connection = True
+                    self._send(429, {'error':'ingest rate limit exceeded'},
+                               {'Retry-After':str(retry_after)})
+                    return
             elif path.startswith('/api/alerts/') and path.endswith('/ack'):
                 if not self._require('read'):
                     return
@@ -130,11 +168,12 @@ def handler_factory(store, ingest_key, read_key):
     return Handler
 
 
-def make_server(host, port, db_path, ingest_key, read_key):
+def make_server(host, port, db_path, ingest_key, read_key, *, ingest_burst=120, ingest_per_minute=600):
     if host not in ('127.0.0.1', '::1', 'localhost') and not (host == '0.0.0.0' and os.environ.get('SENTINEL_CONTAINER_BIND') == '1'):
         raise ValueError('Sentinel MVP is loopback-only; use a TLS/authenticated reverse proxy in future releases')
+    limiter = TokenBucket(ingest_burst, ingest_per_minute)
     store = Store(db_path)
-    server = ThreadingHTTPServer((host, port), handler_factory(store, ingest_key, read_key))
+    server = ThreadingHTTPServer((host, port), handler_factory(store, ingest_key, read_key, limiter))
     server.daemon_threads = True
     server.store = store
     return server
@@ -145,8 +184,12 @@ def main():
     p.add_argument('--host', default='127.0.0.1')
     p.add_argument('--port', type=int, default=8765)
     p.add_argument('--db', default='sentinel.sqlite3')
+    p.add_argument('--ingest-burst', type=int, default=120, help='maximum immediate ingestion requests')
+    p.add_argument('--ingest-per-minute', type=int, default=600, help='ingestion refill rate per minute')
     args = p.parse_args()
-    server = make_server(args.host, args.port, args.db, os.environ.get('SENTINEL_INGEST_TOKEN'), os.environ.get('SENTINEL_READ_TOKEN'))
+    server = make_server(args.host, args.port, args.db, os.environ.get('SENTINEL_INGEST_TOKEN'),
+                         os.environ.get('SENTINEL_READ_TOKEN'), ingest_burst=args.ingest_burst,
+                         ingest_per_minute=args.ingest_per_minute)
     try:
         print(f'Sentinel listening on http://{args.host}:{server.server_port}')
         server.serve_forever()
