@@ -51,3 +51,19 @@ Auth-burst detection now uses event timestamps rather than ingestion order. For 
 **Trade-offs:** this is a local ten-minute event-time query per authentication failure, not a streaming watermark or historical backfill engine. Close-by distinct bursts may be deduplicated; high-volume deployments need a first-class incident model, load benchmarks, backpressure and event-time policies.
 
 Browser CI pins Ubuntu 24.04 because Playwright 1.56 cannot install Chromium on Ubuntu 26.04, selected by `ubuntu-latest` during the October 26 run.
+
+## Authenticated ingestion rate limiting (2026-10-30)
+
+The ingestion endpoint uses a thread-safe, process-local token bucket. By default it accepts a
+burst of 120 authenticated POST requests and refills at 600 requests per minute. Start the
+server with `--ingest-burst 30 --ingest-per-minute 120` to set lower limits. Exhausted
+requests return HTTP 429 and a `Retry-After` header; they do not enter the event store.
+The reader API remains independent of the ingestion limiter. Limits reset on restart and
+are **not shared across multiple processes or hosts**. This is a backpressure safeguard,
+not DDoS protection, a distributed quota, or a substitute for a reverse proxy and network
+access controls.
+
+The JSONL ingestion client honors `Retry-After` for HTTP 429 and retries each line up to
+three times by default (`--max-retries 0..10`), retaining its idempotent event ID. It
+returns a nonzero exit code if any line fails, even when earlier lines succeeded. A
+persistent rate-limit condition requires slowing the sender or adjusting deployment limits.
