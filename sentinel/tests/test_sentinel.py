@@ -1,6 +1,8 @@
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 import json
+import io
+from unittest.mock import patch
 import tempfile
 import threading
 import unittest
@@ -8,8 +10,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from sentinel.api import make_server
-from sentinel.agent import validate_url
+from sentinel.api import TokenBucket, make_server
+from sentinel.agent import send_lines, validate_url
 from sentinel.core import Store, ValidationError, parse_event
 
 NOW = dt.datetime.now(dt.timezone.utc)
@@ -192,3 +194,75 @@ class APITests(unittest.TestCase):
         with self.assertRaises(ValueError):make_server('0.0.0.0',0,':memory:','i','r')
 
 if __name__=='__main__': unittest.main()
+
+
+class IngestRateLimitTests(unittest.TestCase):
+    def test_bucket_refills_deterministically(self):
+        now = [100.0]
+        bucket = TokenBucket(burst=2, per_minute=60, clock=lambda: now[0])
+        self.assertEqual(bucket.consume(), 0)
+        self.assertEqual(bucket.consume(), 0)
+        self.assertEqual(bucket.consume(), 1)
+        now[0] += 1
+        self.assertEqual(bucket.consume(), 0)
+        self.assertEqual(bucket.consume(), 1)
+        for invalid in (0, -1, 100001, 1.5, True):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                TokenBucket(burst=invalid)
+
+    def test_ingestion_429_does_not_block_read_api(self):
+        with tempfile.TemporaryDirectory() as d:
+            server = make_server('127.0.0.1', 0, Path(d)/'rate.db', 'ingest_secret',
+                                 'reader_secret', ingest_burst=2, ingest_per_minute=1)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            url = f'http://127.0.0.1:{server.server_port}'
+            try:
+                for i in range(3):
+                    payload = json.dumps(event(8000+i)).encode()
+                    request = urllib.request.Request(url+'/api/events', data=payload,
+                        headers={'Authorization':'Bearer ingest_secret', 'Content-Type':'application/json'},
+                        method='POST')
+                    try:
+                        with urllib.request.urlopen(request, timeout=4) as response:
+                            self.assertEqual(response.status, 201)
+                            self.assertLess(i, 2)
+                    except urllib.error.HTTPError as exc:
+                        self.assertEqual(i, 2)
+                        self.assertEqual(exc.code, 429)
+                        self.assertGreaterEqual(int(exc.headers['Retry-After']), 1)
+                        self.assertEqual(json.load(exc)['error'], 'ingest rate limit exceeded')
+                read = urllib.request.Request(url+'/api/stats',
+                    headers={'Authorization':'Bearer reader_secret'})
+                with urllib.request.urlopen(read, timeout=4) as response:
+                    self.assertEqual(json.load(response)['events'], 2)
+            finally:
+                server.shutdown()
+                server.server_close()
+                server.store.close()
+
+
+class AgentRetryTests(unittest.TestCase):
+    def test_retries_429_with_retry_after(self):
+        error = urllib.error.HTTPError('http://127.0.0.1:8765/api/events', 429,
+                                      'rate limited', {'Retry-After':'2'}, None)
+        response = io.BytesIO(b'{"inserted":true,"detections":[]}')
+        with patch('sentinel.agent.urllib.request.urlopen', side_effect=[error, response]) as urlopen:
+            delays = []
+            result = send_lines(io.StringIO(json.dumps(event(9100))+'\n'),
+                                'http://127.0.0.1:8765', 'ingest_secret', sleep=delays.append)
+        self.assertEqual(result, 1)
+        self.assertEqual(delays, [2])
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_exhausted_retries_report_failure(self):
+        def limited(*args, **kwargs):
+            raise urllib.error.HTTPError('http://127.0.0.1:8765/api/events', 429,
+                                         'rate limited', {'Retry-After':'1'}, None)
+        failures = []
+        with patch('sentinel.agent.urllib.request.urlopen', side_effect=limited) as urlopen:
+            self.assertEqual(send_lines(io.StringIO(json.dumps(event(9101))+'\n'),
+                'http://127.0.0.1:8765', 'ingest_secret', sleep=lambda _:None,
+                max_retries=2, failures=failures), 0)
+        self.assertEqual(failures, [1])
+        self.assertEqual(urlopen.call_count, 3)
