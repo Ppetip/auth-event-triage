@@ -1,0 +1,20 @@
+services:
+  sentinel:
+    build:
+      context: ..
+      dockerfile: sentinel/Dockerfile
+    environment:
+      SENTINEL_INGEST_TOKEN: ${SENTINEL_INGEST_TOKEN:?set_ingest_token}
+      SENTINEL_READ_TOKEN: ${SENTINEL_READ_TOKEN:?set_read_token}
+      SENTINEL_CONTAINER_BIND: "1"
+    ports:
+      - '127.0.0.1:8765:8765'
+    volumes:
+      - sentinel_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  sentinel_data:
