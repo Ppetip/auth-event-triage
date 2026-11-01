@@ -4,7 +4,8 @@ services:
       context: ..
       dockerfile: sentinel/Dockerfile
     environment:
-      SENTINEL_INGEST_TOKEN: ${SENTINEL_INGEST_TOKEN:?set_ingest_token}
+      SENTINEL_INGEST_TOKEN: ${SENTINEL_INGEST_TOKEN:-}
+      SENTINEL_AGENT_TOKENS_JSON: ${SENTINEL_AGENT_TOKENS_JSON:-}
       SENTINEL_READ_TOKEN: ${SENTINEL_READ_TOKEN:?set_read_token}
       SENTINEL_CONTAINER_BIND: "1"
     ports:

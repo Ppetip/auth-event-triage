@@ -51,7 +51,8 @@ class Store:
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS events (
               id TEXT PRIMARY KEY, host TEXT NOT NULL, kind TEXT NOT NULL,
-              timestamp TEXT NOT NULL, detail TEXT NOT NULL);
+              timestamp TEXT NOT NULL, detail TEXT NOT NULL,
+              agent_id TEXT NOT NULL DEFAULT 'legacy');
             CREATE INDEX IF NOT EXISTS idx_events_time ON events(timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_events_host_kind ON events(host,kind,timestamp);
             CREATE TABLE IF NOT EXISTS alerts (
@@ -69,19 +70,27 @@ class Store:
               FOREIGN KEY(alert_id) REFERENCES alerts(id));
             CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_entries(timestamp DESC,id DESC);
         ''')
+        # Additive migration; old rows are attributed to the legacy shared key.
+        if 'agent_id' not in {r['name'] for r in self.db.execute('PRAGMA table_info(events)')}:
+            self.db.execute("ALTER TABLE events ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'legacy'")
 
-    def ingest(self, raw):
+    def ingest(self, raw, agent_id='legacy'):
         event = parse_event(raw)
+        if not isinstance(agent_id, str) or (agent_id != 'legacy' and not HOST_RE.fullmatch(agent_id)):
+            raise ValidationError('invalid agent identity')
+        if agent_id != 'legacy' and event['host'] != agent_id:
+            raise ValidationError('agent cannot report another host')
+        record = {**event, 'agent_id': agent_id}
         with self.lock:
             self.db.execute('BEGIN IMMEDIATE')
             try:
                 row = self.db.execute('SELECT * FROM events WHERE id=?', (event['id'],)).fetchone()
                 if row:
-                    if dict(row) != event:
+                    if dict(row) != record:
                         raise ValidationError('id already used for a different event')
                     self.db.execute('COMMIT')
                     return False, []
-                self.db.execute('INSERT INTO events(id,host,kind,timestamp,detail) VALUES (:id,:host,:kind,:timestamp,:detail)', event)
+                self.db.execute('INSERT INTO events(id,host,kind,timestamp,detail,agent_id) VALUES (:id,:host,:kind,:timestamp,:detail,:agent_id)', record)
                 detections = []
                 if event['kind'] in ('host_down', 'integrity_changed'):
                     detections.append((event['kind'], 'Host unavailable' if event['kind']=='host_down' else 'File integrity changed'))

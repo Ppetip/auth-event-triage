@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .core import Store, ValidationError, HOST_RE
+from .credentials import IngestCredentials, parse_agent_tokens
 
 MAX_BODY = 8192
 WEB = Path(__file__).with_name('web')
@@ -41,9 +42,8 @@ class TokenBucket:
             return 0
 
 
-def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
-    if not ingest_key or not read_key or ingest_key == read_key:
-        raise ValueError('set distinct non-empty ingestion and reader tokens')
+def handler_factory(store, ingest_key, read_key, ingest_limiter=None, agent_tokens=None):
+    credentials = IngestCredentials(ingest_key, read_key, agent_tokens or {})
 
     ingest_limiter = ingest_limiter or TokenBucket()
 
@@ -63,7 +63,7 @@ def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
             self.wfile.write(data)
 
         def _authorized(self, role):
-            expected = ingest_key if role == 'ingest' else read_key
+            expected = read_key
             header = self.headers.get('Authorization', '')
             return hmac.compare_digest(header, 'Bearer ' + expected)
 
@@ -122,7 +122,9 @@ def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
         def do_POST(self):
             path = self._path().path
             if path == '/api/events':
-                if not self._require('ingest'):
+                agent_id = credentials.identify(self.headers.get('Authorization', ''))
+                if agent_id is None:
+                    self._send(401, {'error':'unauthorized'})
                     return
                 retry_after = ingest_limiter.consume()
                 if retry_after:
@@ -156,7 +158,10 @@ def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
                     self._send(415, {'error':'expected application/json'})
                     return
                 raw = json.loads(self.rfile.read(length))
-                inserted, detections = store.ingest(raw)
+                if agent_id != 'legacy' and isinstance(raw, dict) and isinstance(raw.get('host'), str) and raw['host'] != agent_id:
+                    self._send(403, {'error':'agent may only report its own host'})
+                    return
+                inserted, detections = store.ingest(raw, agent_id=agent_id)
                 self._send(201 if inserted else 200, {'inserted':inserted,'detections':detections})
             except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 self._send(400, {'error':str(exc)})
@@ -168,12 +173,13 @@ def handler_factory(store, ingest_key, read_key, ingest_limiter=None):
     return Handler
 
 
-def make_server(host, port, db_path, ingest_key, read_key, *, ingest_burst=120, ingest_per_minute=600):
+def make_server(host, port, db_path, ingest_key, read_key, *, ingest_burst=120, ingest_per_minute=600, agent_tokens=None):
     if host not in ('127.0.0.1', '::1', 'localhost') and not (host == '0.0.0.0' and os.environ.get('SENTINEL_CONTAINER_BIND') == '1'):
         raise ValueError('Sentinel MVP is loopback-only; use a TLS/authenticated reverse proxy in future releases')
+    agents = parse_agent_tokens(agent_tokens if isinstance(agent_tokens, str) else json.dumps(agent_tokens or {}), ingest_key, read_key)
     limiter = TokenBucket(ingest_burst, ingest_per_minute)
     store = Store(db_path)
-    server = ThreadingHTTPServer((host, port), handler_factory(store, ingest_key, read_key, limiter))
+    server = ThreadingHTTPServer((host, port), handler_factory(store, ingest_key, read_key, limiter, agent_tokens=agents))
     server.daemon_threads = True
     server.store = store
     return server
@@ -189,7 +195,8 @@ def main():
     args = p.parse_args()
     server = make_server(args.host, args.port, args.db, os.environ.get('SENTINEL_INGEST_TOKEN'),
                          os.environ.get('SENTINEL_READ_TOKEN'), ingest_burst=args.ingest_burst,
-                         ingest_per_minute=args.ingest_per_minute)
+                         ingest_per_minute=args.ingest_per_minute,
+                         agent_tokens=os.environ.get('SENTINEL_AGENT_TOKENS_JSON'))
     try:
         print(f'Sentinel listening on http://{args.host}:{server.server_port}')
         server.serve_forever()

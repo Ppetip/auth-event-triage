@@ -67,3 +67,42 @@ The JSONL ingestion client honors `Retry-After` for HTTP 429 and retries each li
 three times by default (`--max-retries 0..10`), retaining its idempotent event ID. It
 returns a nonzero exit code if any line fails, even when earlier lines succeeded. A
 persistent rate-limit condition requires slowing the sender or adjusting deployment limits.
+
+## Per-agent credentials and restart-based rotation (2026-11-01)
+
+Sentinel supports an optional JSON credential registry, keyed by **exact event host**.
+Use cryptographically random, unique bearer tokens of 32–128 URL-safe characters.
+Each host may have one to three simultaneous tokens to permit a rotation overlap.
+
+```bash
+# Generate a distinct token for each agent with Python's secrets module.
+python -c 'import secrets; print(secrets.token_urlsafe(32))'
+# Example only: replace each placeholder with an independently generated token.
+export SENTINEL_AGENT_TOKENS_JSON='{"node-1":["REPLACE_WITH_43_CHARACTER_RANDOM_TOKEN"],"node-2":["REPLACE_WITH_DIFFERENT_RANDOM_TOKEN"]}'
+export SENTINEL_READ_TOKEN="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
+# SENTINEL_INGEST_TOKEN is optional when the agent registry is configured.
+python -m sentinel.api --db ./sentinel.sqlite3
+```
+
+Use `SENTINEL_INGEST_TOKEN` on each agent host, set to that host's assigned
+credential, and send events with `host` matching its configured identifier.
+A credential for `node-1` cannot submit events claiming `node-2` (HTTP 403),
+and cannot read events or acknowledge alerts. `GET /api/events` now includes
+`agent_id` to identify the authenticated ingest credential. A legacy shared
+ingestion token, if configured, retains unrestricted host reporting and is
+recorded as `agent_id: legacy`; **disable it after migrating agents**.
+
+To rotate a host credential: add the replacement key alongside the old key,
+restart Sentinel, update the sender, then remove the old key and restart again.
+The server validates the registry on startup and rejects duplicate, cross-role,
+short, or malformed credentials. The registry is held in process memory and is
+not written to the database. SQLite automatically adds the `agent_id` column
+for existing databases; historical events are labeled `legacy`. Back up the
+SQLite database before upgrading and test recovery before production use.
+
+**Limits:** rotation requires restart; credentials are stored in environment
+variables and may be visible to host administrators and Docker inspection.
+Host-scoped bearer keys authenticate senders but cannot prove that a host has
+not been compromised. There is no remote enrollment, revocation without a
+restart, TLS termination, individual dashboard-user attribution, or multi-tenant
+isolation. Keep deployment on trusted loopback networks.
