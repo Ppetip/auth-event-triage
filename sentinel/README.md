@@ -16,7 +16,7 @@ Open http://127.0.0.1:8765/, paste SENTINEL_READ_TOKEN in the reader token field
 python -m sentinel.agent events.jsonl
 ```
 
-Each line must contain exactly id (8–64 ASCII letters/digits/underscore/hyphen), host (ASCII hostname), kind (auth_failure, auth_success, host_down, host_up, integrity_changed), timezone-aware ISO-8601 timestamp within 7 days of now and no more than 5 minutes into the future, and a detail string of at most 512 characters. IDs are idempotent; conflicting reuse is rejected. Payload limit 8192 bytes. Alerts: fifth authentication failure per host within five minutes, host down, and integrity change. Events are not reprocessed retroactively for out-of-order windows.
+Each line must contain exactly id (8–64 ASCII letters/digits/underscore/hyphen), host (ASCII hostname), kind (auth_failure, auth_success, host_down, host_up, integrity_changed), timezone-aware ISO-8601 timestamp within 7 days of now and no more than 5 minutes into the future, and a detail string of at most 512 characters. IDs are idempotent; conflicting reuse is rejected. Payload limit 8192 bytes. Alerts: fifth authentication failure per host within five minutes, host down, and integrity change. Late events are checked against nearby event-time windows; see the late-event limitations below.
 
 ## Tests
 
@@ -78,7 +78,7 @@ Each host may have one to three simultaneous tokens to permit a rotation overlap
 # Generate a distinct token for each agent with Python's secrets module.
 python -c 'import secrets; print(secrets.token_urlsafe(32))'
 # Example only: replace each placeholder with an independently generated token.
-export SENTINEL_AGENT_TOKENS_JSON='{"node-1":["REPLACE_WITH_43_CHARACTER_RANDOM_TOKEN"],"node-2":["REPLACE_WITH_DIFFERENT_RANDOM_TOKEN"]}'
+export SENTINEL_AGENT_TOKENS_JSON='{"node-1":["<random-token-for-node-1>"],"node-2":["<random-token-for-node-2>"]}'
 export SENTINEL_READ_TOKEN="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
 # SENTINEL_INGEST_TOKEN is optional when the agent registry is configured.
 python -m sentinel.api --db ./sentinel.sqlite3
