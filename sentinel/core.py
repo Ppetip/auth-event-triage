@@ -25,6 +25,8 @@ def parse_event(obj, now=None):
         raise ValidationError('invalid kind')
     if not isinstance(obj['detail'], str) or len(obj['detail']) > 512:
         raise ValidationError('detail too long')
+    if not isinstance(obj['timestamp'], str) or len(obj['timestamp']) > 64:
+        raise ValidationError('invalid timestamp')
     try:
         timestamp = dt.datetime.fromisoformat(obj['timestamp'].replace('Z', '+00:00'))
     except (ValueError, AttributeError, TypeError):
