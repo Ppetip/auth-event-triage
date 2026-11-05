@@ -24,6 +24,22 @@ class TimestampValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "invalid timestamp"):
             parse_event({**self.valid, "timestamp": "2" * 10000})
 
+    def test_timezone_offsets_normalize_to_utc(self):
+        fixed = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        eastern = fixed.astimezone(dt.timezone(dt.timedelta(hours=-4)))
+        parsed = parse_event({**self.valid, "timestamp": eastern.isoformat()}, now=fixed)
+        self.assertEqual(parsed["timestamp"], fixed.isoformat())
+
+    def test_reject_naive_timestamp(self):
+        with self.assertRaisesRegex(ValidationError, "timezone"):
+            parse_event({**self.valid, "timestamp": dt.datetime.now().isoformat()})
+
+    def test_reject_outside_time_window(self):
+        now = dt.datetime(2026, 11, 5, tzinfo=dt.timezone.utc)
+        for timestamp in (now - dt.timedelta(days=8), now + dt.timedelta(minutes=6)):
+            with self.subTest(timestamp=timestamp), self.assertRaisesRegex(ValidationError, "outside accepted window"):
+                parse_event({**self.valid, "timestamp": timestamp.isoformat()}, now=now)
+
     def test_accept_current_utc_timestamp(self):
         self.assertEqual(parse_event(self.valid)["host"], "node-1")
 
