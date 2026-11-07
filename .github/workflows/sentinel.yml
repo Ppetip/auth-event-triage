@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m unittest sentinel.tests.test_sentinel sentinel.tests.test_credentials -v
+      - run: python -m unittest discover -s sentinel/tests -p 'test_*.py' -v
   ui-contract:
     runs-on: ubuntu-latest
     steps:
