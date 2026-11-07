@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentinel | Security operations</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101622;color:#edf2fa}body{max-width:1150px;margin:2rem auto;padding:0 1rem}header{display:flex;justify-content:space-between;align-items:center}h1{letter-spacing:.06em}button,input{font:inherit;padding:.65rem;border-radius:.4rem;border:1px solid #8a9eb7}button{cursor:pointer;background:#1d5277;color:white}button:hover,button:focus-visible{background:#3179a5}input{background:#172438;color:#fff}section{margin:1.5rem 0;background:#192436;border-radius:.6rem;padding:1rem}table{width:100%;border-collapse:collapse}td,th{padding:.6rem;text-align:left;border-bottom:1px solid #36465c;overflow-wrap:anywhere}th{color:#b9cbe0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem}.card{background:#23374e;border-radius:.5rem;padding:1rem}.card strong{font-size:1.8rem;display:block}label{display:inline-block;margin-right:.5rem}#status{min-height:1.5rem} .muted{color:#b9cbe0}@media(max-width:680px){.scroll{overflow-x:auto}header{display:block}}
+</style>
+</head>
+<body>
+<header><div><h1>Sentinel</h1><p class="muted">Local-first security operations</p></div><div><label for="token">Reader token</label><input id="token" type="password" autocomplete="off" aria-describedby="token-help"><button id="connect">Connect</button><p id="token-help" class="muted">Token is kept in this tab's memory, not stored.</p></div></header>
+<p id="status" role="status" aria-live="polite">Enter the reader token to load data.</p>
+<section aria-labelledby="summary-heading"><h2 id="summary-heading">Overview</h2><div class="cards"><div class="card">Events<strong id="events-total">—</strong></div><div class="card">Alerts<strong id="alerts-total">—</strong></div><div class="card">Open alerts<strong id="open-total">—</strong></div><div class="card">Hosts<strong id="hosts-total">—</strong></div></div></section>
+<section aria-labelledby="alerts-heading"><h2 id="alerts-heading">Alerts</h2><button id="refresh">Refresh</button><div class="scroll"><table><thead><tr><th>Time</th><th>Host</th><th>Rule</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody id="alerts-body"><tr><td colspan="6">Connect to view alerts.</td></tr></tbody></table></div></section>
+<section aria-labelledby="events-heading"><h2 id="events-heading">Recent events</h2><label for="host">Host filter</label><input id="host" placeholder="All hosts"><button id="filter">Apply filter</button><div class="scroll"><table><thead><tr><th>Time</th><th>Host</th><th>Kind</th><th>Detail</th></tr></thead><tbody id="events-body"><tr><td colspan="4">Connect to view events.</td></tr></tbody></table></div></section>
+<section aria-labelledby="audit-heading"><h2 id="audit-heading">Alert acknowledgment history</h2><p class="muted">Records when an alert was acknowledged. Shared reader tokens cannot identify individual people.</p><div class="scroll"><table><caption>Alert acknowledgment history</caption><thead><tr><th scope="col">Time</th><th scope="col">Alert ID</th><th scope="col">Action</th><th scope="col">Actor role</th></tr></thead><tbody id="audit-body"><tr><td colspan="4">Connect to view audit history.</td></tr></tbody></table></div></section>
+<script src="/app.js" defer></script>
+</body></html>
